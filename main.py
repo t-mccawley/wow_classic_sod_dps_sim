@@ -17,10 +17,5 @@ SIM_DELTA_T = 0.1 # time step of sim, in seconds
 
 # char.print_current_state()
 
-from config.gear_sets import GEAR_SETS_LIST
-# print(GEAR_SETS_LIST)
-for gear_set in GEAR_SETS_LIST:
-    # print(gear_set)
-    for gear in gear_set:
-        # print(gear)
-        gear.print_stat_bonuses()
+from config.gear_sets import GEAR_SETS
+GEAR_SETS.print_all_gear_sets_total_stat_bonuses()

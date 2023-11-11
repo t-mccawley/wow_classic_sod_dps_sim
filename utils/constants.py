@@ -19,60 +19,6 @@ class Race:
         else:
             print("Unsupported race!")
 
-class Character(Race):
-    """High level class to define a character"""
-    def __init__(self,race,spec,buffs,gear_set,rotation):
-        super().__init__(race)
-        # time elapsed
-        self.time_elapsed_sec = 0
-        # determine base stats
-        self.base_intellect = self._determine_base_intellect(gear_set)
-        # current stats
-        self.intellect = self._determine_current_intellect(spec,buffs,gear_set)
-        self.spirit = 0
-        self.max_mana = 0
-        self.mana = 0
-        self.spell_crit_chance = 0
-        self.spellpower = 0
-        self.mp5_while_casting = 0
-        self.mp5_while_not_casting = 0
-        self.mp5 = self.mp5_while_not_casting
-        # other
-        self.rotation = rotation
-    
-    def _determine_base_intellect(self,gear_set):
-        """Determines the characters base intellect, which is time invariant"""
-        intellect = self.base_intellect
-    
-    def _determine_current_intellect(self,buffs):
-        """Determines the characters current intellect, which is time varying"""
-        intellect = self.base_intellect
-        for buff in buffs:
-            intellect += buff.get_intellect_bonus(self.time_elapsed_sec)
-        
-        return(intellect)
-
-    def _determine_current_intellect(self,spec,buffs,gear_set):
-        """Determines the characters intellect"""
-        intellect = self.intellect
-        for buff in buffs:
-            intellect += buff.get_intellect_bonus(self.time_elapsed_sec)
-        
-        return(intellect)
-    
-    def print_current_state(self):
-        """Prints the current character state"""
-        print("Character State:")
-        print("\tintellect: {}".format(self.intellect))
-        print("\tspirit: {}".format(self.spirit))
-        print("\tmax_mana: {}".format(self.max_mana))
-        print("\tmana: {}".format(self.mana))
-        print("\tspell_crit_chance: {}".format(self.spell_crit_chance))
-        print("\tspellpower: {}".format(self.spellpower))
-        print("\tmp5_while_casting: {}".format(self.mp5_while_casting))
-        print("\tmp5_while_not_casting: {}".format(self.mp5_while_not_casting))
-        print("\tmp5: {}".format(self.mp5))
-
 class GearSlot(Enum):
     HEAD = 1
     NECK = 2
@@ -144,3 +90,58 @@ class Gear:
         print("\tspirit_bonus: {}".format(self.spirit_bonus))
         print("\tspellpower_bonus: {}".format(self.spellpower_bonus))
         print("\tmp5_bonus: {}".format(self.mp5_bonus))
+
+class Character(Race):
+    """High level class to define a character"""
+    def __init__(self,race,spec,buffs,gear_sets,rotation):
+        super().__init__(race)
+        # metadata
+        self.time_elapsed_sec = 0
+        self.gear_sets = gear_sets
+        # determine base stats
+        self.base_intellect = self._determine_base_intellect(gear_set)
+        # current stats
+        self.intellect = self._determine_current_intellect(spec,buffs,gear_set)
+        self.spirit = 0
+        self.max_mana = 0
+        self.mana = 0
+        self.spell_crit_chance = 0
+        self.spellpower = 0
+        self.mp5_while_casting = 0
+        self.mp5_while_not_casting = 0
+        self.mp5 = self.mp5_while_not_casting
+        # other
+        self.rotation = rotation
+    
+    def _determine_base_intellect(self,gear_set):
+        """Determines the characters base intellect, which is time invariant"""
+        return(self.base_intellect + gear_set.get_total_intellect_bonus())
+    
+    def _determine_current_intellect(self,buffs):
+        """Determines the characters current intellect, which is time varying"""
+        intellect = self.base_intellect
+        for buff in buffs:
+            intellect += buff.get_intellect_bonus(self.time_elapsed_sec)
+        
+        return(intellect)
+
+    def _determine_current_intellect(self,spec,buffs,gear_set):
+        """Determines the characters intellect"""
+        intellect = self.intellect
+        for buff in buffs:
+            intellect += buff.get_intellect_bonus(self.time_elapsed_sec)
+        
+        return(intellect)
+    
+    def print_current_state(self):
+        """Prints the current character state"""
+        print("Character State:")
+        print("\tintellect: {}".format(self.intellect))
+        print("\tspirit: {}".format(self.spirit))
+        print("\tmax_mana: {}".format(self.max_mana))
+        print("\tmana: {}".format(self.mana))
+        print("\tspell_crit_chance: {}".format(self.spell_crit_chance))
+        print("\tspellpower: {}".format(self.spellpower))
+        print("\tmp5_while_casting: {}".format(self.mp5_while_casting))
+        print("\tmp5_while_not_casting: {}".format(self.mp5_while_not_casting))
+        print("\tmp5: {}".format(self.mp5))
