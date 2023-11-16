@@ -1,16 +1,4 @@
-class Buff:
-    def __init__(self):
-        self.intellect_bonus = 0
-        self.spirit_bonus = 0
-        self.max_duration_sec = 0
-
-    def get_intellect_bonus(self,time_elapsed_sec):
-        """Returns the intellect bonus"""
-        if time_elapsed_sec <= self.max_duration_sec:
-            return(self.intellect_bonus)
-        else:
-            return(0)
-
+from utils.constants import Buff
 
 class ArcaneIntellect(Buff):
     def __init__(self,rank):
