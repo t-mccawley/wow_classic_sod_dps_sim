@@ -183,14 +183,14 @@ class Character(Race):
             self,
             race: str,
             level: int,
-            spec,
+            spec: map, # from name of talent to number of points
             buffs: List[Buff],
             gear_set: GearSet,
             rotation: str,
         ):
         super().__init__(race,level)
         # metadata
-        self.time_elapsed_sec = 0
+        self.time_elapsed_sec = -0.1 # start negative so first step is 0.0
         self.spec = spec
         self.gear_set = gear_set # list gear
         self.buffs = buffs # list of buffs
@@ -199,7 +199,7 @@ class Character(Race):
         self._update_primary_stats()
         # update secondary stats
         self._update_secondary_stats()
-        # other status stuff
+        # character state
         self.mana = self.max_mana
         self.casting = False # boolean indicating if actively casting 
         self.current_cast_time = None # number of seconds into a cast
@@ -209,6 +209,12 @@ class Character(Race):
         self.current_cast_mana_cost = None # mana that will be spent when cast completes
         self.gcd = False # boolean indicating if actively on GCD
         self.gcd_time = None # number of seconds into the GCD
+        # cooldowns
+        # data tracking
+        self.timeseries = []
+        self.damage_done_timeseries = []
+        self.dps_timeseries = []
+        self.mana_timeseries = []
         self.cumulative_damage_done = 0.0
 
     def _update_primary_stats(self):
@@ -223,6 +229,8 @@ class Character(Race):
     def _update_secondary_stats(self):
         """Updates secondary stats"""
         self.max_mana = self.base_mana + min(20,self.intellect) + 15*(self.intellect - min(20,self.intellect))
+        if "Ancestral Knowledge" in self.spec:
+            self.max_mana *= (1 + 0.01*self.spec["Ancestral Knowledge"])
         self.spell_crit_chance = 0.05 + (self.intellect / 59.5) / 100
         self.spellpower = self.gear_set.get_total_spellpower_bonus()
         self.mp5_while_casting = self.gear_set.get_total_mp5_bonus()
@@ -248,17 +256,50 @@ class Character(Race):
     # DEFINE SPELLS
     # spell power coefficients: https://www.reddit.com/r/classicwow/comments/95abc8/list_of_spellcoefficients_1121/
 
-    def lightning_bolt_r1(self):
+    def lightning_bolt(self,rank):
         """https://www.wowhead.com/classic/spell=403/lightning-bolt"""
-        # constants
-        base_cast_time = 1.5
-        name = "Lightning Bold (Rank 1)"
-        mana_cost = 15
-        base_damage = 16.0
-        learned_level = 1
+        # constants (maps from rank to value)
+        BASE_CAST_TIME_MAP = {
+            1: 1.5,
+            2: 2.0,
+            3: 2.5,
+            4: 3.0,
+        }
+        NAME_MAP = {
+            1: "Lightning Bold (Rank 1)",
+            2: "Lightning Bold (Rank 2)",
+            3: "Lightning Bold (Rank 3)",
+            4: "Lightning Bold (Rank 4)",
+        }
+        MANA_COST_MAP = {
+            1: 15,
+            2: 30,
+            3: 45,
+            4: 75,
+        }
+        BASE_DAMAGE_MAP = {
+            1: 16.0,
+            2: 30.5,
+            3: 52.5,
+            4: 94.0,
+        }
+        LEARNED_LEVEL_MAP = {
+            1 : 1,
+            2 : 8,
+            3: 14,
+            4: 20,
+        }
 
         if not self.gcd and not self.casting:
+            mana_cost = MANA_COST_MAP[rank]
+            if "Convection" in self.spec:
+                mana_cost *= (1 - 0.02*self.spec["Convection"])
             if mana_cost <= self.mana:
+                name = NAME_MAP[rank]
+                base_cast_time = BASE_CAST_TIME_MAP[rank]
+                if "Lightning Mastery" in self.spec:
+                    base_cast_time -= self.spec["Lightning Mastery"]*0.2
+
                 print("casting {} !".format(name))
                 # compute spell damage and mana
                 self.casting = True
@@ -273,14 +314,28 @@ class Character(Race):
                 crit_roll = random.random()
                 if hit_roll < self.spell_hit_raid_boss:
                     # hit!
+                    base_damage = BASE_DAMAGE_MAP[rank]
+                    if "Concussion" in self.spec:
+                        base_damage *= self.spec["Concussion"]*0.01
                     print("HIT!")
-                    spc = base_cast_time / 3.5
-                    spc_penalty = 1 - (20 - learned_level)*0.0375
+                    spc = max(min(base_cast_time,3.5),1.5) / 3.5
+                    spc_penalty = 1 - (20 - min(20,LEARNED_LEVEL_MAP[rank]))*0.0375
                     damage = base_damage + (spc * spc_penalty * self.spellpower)
-                    if crit_roll < self.spell_crit_chance:
+                    crit_chance = self.spell_crit_chance
+                    if "Call of Thunder" in self.spec:
+                        if self.spec["Call of Thunder"] <= 4:
+                            crit_chance += self.spec["Call of Thunder"]*0.01
+                        else:
+                            crit_chance += 0.06
+                    if "Tidal Mastery" in self.spec:
+                        crit_chance += self.spec["Tiday Mastery"]*0.01
+                    if crit_roll < crit_chance:
                         # crit!
                         print("CRIT!")
-                        damage *= 2.0
+                        if "Elemental Fury" in self.spec:
+                            damage *= 2.0
+                        else:
+                            damage *= 1.5
 
                 self.current_cast_damage = damage
         
@@ -291,6 +346,7 @@ class Character(Race):
         """take one simulation time step (0.1s)"""
         # take time step
         self.time_elapsed_sec += 0.1
+        self.timeseries.append(self.time_elapsed_sec)
         print("starting time step at elapsed time {:0.2f} s".format(self.time_elapsed_sec))
 
         # update stats
@@ -315,11 +371,27 @@ class Character(Race):
             print("current cast time {:0.2f} s".format(self.current_cast_time))
             if self.current_cast_time >= self.current_cast_max:
                 # cast complete!
-                print("{} cast complete!".format(self.current_cast_name))
+                # check if clearcasting already active
+                mana_cost = self.current_cast_mana_cost
+                if self.clear_cast_active:
+                    mana_cost = 0
+                    self.clear_cast_active = False
+                # check for Overload
+                if ("Overload" in self.spec) and (self.current_cast_damage != 0) and ("Lightning Bolt" in self.current_cast_name or "Chain Lightning" in self.current_cast_name or "Lava Burst" in self.current_cast_name):
+                    if random.rand() < 0.33:
+                        # add second bolt of 50% damage
+                        self.current_cast_damage *= 1.5
+                # record damage and mana
+                # TODO use new structures
                 self.cumulative_damage_done += self.current_cast_damage
-                self.mana -= self.current_cast_mana_cost
-                print("damage done: {}".format(self.current_cast_damage))
-                print("mana cost: {}".format(self.current_cast_mana_cost))
+                self.damage_done_timeseries.append(self.cumulative_damage_done)
+                self.dps_timeseries.append(self.cumulative_damage_done / self.time_elapsed_sec)
+                self.mana -= mana_cost
+                self.mana_timeseries.append(self.mana)
+                # check for new clearcasting
+                if "Elemental Focus" in self.spec and mana_cost != 0: 
+                    if random.random() < 0.1:
+                        self.clear_cast_active = True
                 # reset
                 self.casting = False
                 self.current_cast_time = None
@@ -335,5 +407,7 @@ class Character(Race):
         # XXX
         self.lightning_bolt_r1()
         # XXX
-
+        
+        # check for mana regen
+        
         return
