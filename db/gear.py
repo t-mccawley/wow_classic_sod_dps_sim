@@ -18,7 +18,7 @@ glowing_green_talisman = Gear(
 magicians_mantle = Gear(
     name="Magician's Mantle",
     slot=GearSlot.SHOULDERS,
-    intellect_bonus=8,
+    intellect_bonus=9,
     spellpower_bonus=5,
 )
 

@@ -17,5 +17,68 @@ SIM_DELTA_T = 0.1 # time step of sim, in seconds
 
 # char.print_current_state()
 
-from config.gear_sets import GEAR_SETS
-GEAR_SETS.print_all_gear_sets_total_stat_bonuses()
+from config.gear_config import GEAR_SET_LIST
+from config.buff_config import BUFFS_LIST
+from utils.constants import *
+
+char = Character(
+    race="Troll",
+    level=25,
+    spec=None,
+    # buffs=[],
+    buffs=BUFFS_LIST[0],
+    # gear_set = GearSet([],"Empty"),
+    gear_set=GEAR_SET_LIST[0],
+    rotation=None
+)
+
+char.print_current_state()
+
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()
+char.time_step()

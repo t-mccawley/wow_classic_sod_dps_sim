@@ -13,7 +13,7 @@ pre_bis_lvl_25_classic = [
     seedcloud_buckler.enchant(greater_spirit_shield),
     shredder_operating_gloves,
     belt_of_arugal,
-    azure_silk_pants,
+    azure_silk_pants.enchant(arcanum_of_focus_legs),
     tundra_boots,
     snake_hoop,
     lavishly_jeweled_ring,

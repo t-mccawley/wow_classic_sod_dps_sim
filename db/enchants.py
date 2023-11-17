@@ -35,3 +35,10 @@ greater_spirit_shield = Enchant(
     slot=GearSlot.OFFHAND,
     spirit_bonus=7,
 )
+
+# legs
+arcanum_of_focus_legs = Enchant(
+    name="Arcanum of Focus",
+    slot=GearSlot.LEGS,
+    spellpower_bonus=8,
+)
