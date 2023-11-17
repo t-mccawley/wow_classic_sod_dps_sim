@@ -1,4 +1,4 @@
-from utils.constants import GearSlot, Gear
+from utils.classes import GearSlot, Gear
 
 # head
 spellpower_goggles_xtreme = Gear(

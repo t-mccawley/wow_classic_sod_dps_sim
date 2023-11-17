@@ -19,66 +19,33 @@ SIM_DELTA_T = 0.1 # time step of sim, in seconds
 
 from config.gear_config import GEAR_SET_LIST
 from config.buff_config import BUFFS_LIST
-from utils.constants import *
+from config.spec_config import SPECS_LIST
+from utils.character import *
+import matplotlib.pyplot as plt
 
-char = Character(
-    race="Troll",
-    level=25,
-    spec=None,
-    # buffs=[],
-    buffs=BUFFS_LIST[0],
-    # gear_set = GearSet([],"Empty"),
-    gear_set=GEAR_SET_LIST[0],
-    rotation=None
-)
 
-char.print_current_state()
+for rotation in ["A","B","C","D"]:
+    char = Character(
+        race="Troll",
+        level=25,
+        spec=SPECS_LIST[0],
+        # buffs=[],
+        buffs=BUFFS_LIST[0],
+        # gear_set = GearSet([],"Empty"),
+        gear_set=GEAR_SET_LIST[0],
+        rotation=rotation,
+    )
+    char.print_current_state()
+    
+    elapsed_time_sec = 0.0
+    while elapsed_time_sec < 100.0:
+        elapsed_time_sec = char.time_step()
 
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
-char.time_step()
+    char.print_perf_stats()
+
+# timeseries, damage_done_timeseries, dps_timeseries, mana_timeseries = char.get_timeseries_data()
+
+# plt.plot(timeseries,dps_timeseries,label="dps")
+# plt.plot(timeseries,mana_timeseries,label="mana")
+# plt.legend()
+# plt.show()

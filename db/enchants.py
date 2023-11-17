@@ -1,4 +1,4 @@
-from utils.constants import GearSlot, Enchant
+from utils.classes import GearSlot, Enchant
 
 # head
 arcanum_of_focus_head = Enchant(

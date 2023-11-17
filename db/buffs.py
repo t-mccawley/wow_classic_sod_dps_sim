@@ -1,4 +1,4 @@
-from utils.constants import Buff
+from utils.classes import Buff
 
 class ArcaneIntellect(Buff):
     def __init__(self,rank):

@@ -1,6 +1,6 @@
 from db.gear import *
 from db.enchants import *
-from utils.constants import GearSet
+from utils.classes import GearSet
 
 pre_bis_lvl_25_classic = [
     spellpower_goggles_xtreme.enchant(arcanum_of_focus_head),
