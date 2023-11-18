@@ -1,4 +1,4 @@
-from utils.classes import Race, Buff, GearSet
+from utils.classes import Race, Buff, GearSet, Spec
 from typing import List
 import random
 
@@ -8,7 +8,7 @@ class Character(Race):
             self,
             race: str,
             level: int,
-            spec: map, # from name of talent to number of points
+            spec: Spec,
             buffs: List[Buff],
             gear_set: GearSet,
             rotation: str,
@@ -32,6 +32,13 @@ class Character(Race):
         self.current_cast_damage = 0.0 # damage that will land with cast completes
         self.current_cast_mana_cost = 0.0 # mana that will be spent when cast completes
         # cooldowns
+        self.on_cooldown = {
+            "GCD": False,
+            "Flame Shock": False,
+            "Lava Burst": False,
+            "Ancestral Guidance": False,
+            "Shamanistic Rage": False,
+        }
         self.remaining_cooldowns = {
             "GCD": 0.0,
             "Flame Shock": 0.0,
@@ -46,12 +53,41 @@ class Character(Race):
             "Ancestral Guidance": 120.0,
             "Shamanistic Rage": 60.0,
         }
-        # personal buffs / debuffs tracking
-        self.clear_cast_active = False
-        self.water_shield_active = False
-        self.water_shield_duration_remaining = 0.0
-        self.flame_shock_applied = False
-        self.flame_shock_duration_remaining = 0.0
+        # short buffs
+        self.short_buff_active = {
+            "Elemental Focus": False,
+            "Flame Shock": False,
+            "Ancestral Guidance": False,
+            "Shamanistic Rage": False,
+        }
+        self.short_buff_remaining = {
+            "Elemental Focus": 0.0,
+            "Flame Shock": 0.0,
+            "Ancestral Guidance": 0.0,
+            "Shamanistic Rage": 0.0,
+        }
+        self.short_buff_max_duration = {
+            "Elemental Focus": float('inf'),
+            "Flame Shock": 12.0,
+            "Ancestral Guidance": 10.0,
+            "Shamanistic Rage": 15.0,
+        }
+        # dot tracking
+        self.dot_active = {
+            "Flame Shock": False,
+        }
+        self.dot_tick_damage = {
+            "Flame Shock": 0.0,
+        }
+        self.dot_tick_frequency = { # seconds between each tick of damage
+            "Flame Shock": 3.0,
+        }
+        self.dot_remaining_duration = {
+            "Flame Shock": 0.0
+        }
+        self.dot_max_duration = {
+            "Flame Shock": 12.0,
+        }
         # data tracking
         self.damage_done_this_tick = 0.0
         self.mana_spent_this_tick = 0.0
@@ -81,8 +117,7 @@ class Character(Race):
     def _update_secondary_stats(self):
         """Updates secondary stats"""
         self.max_mana = self.base_mana + min(20,self.intellect) + 15*(self.intellect - min(20,self.intellect))
-        if "Ancestral Knowledge" in self.spec:
-            self.max_mana *= (1 + 0.01*self.spec["Ancestral Knowledge"])
+        self.max_mana *= (1 + 0.01*self.spec.get_points("Ancestral Knowledge"))
         self.spell_crit_chance = 0.05 + (self.intellect / 59.5) / 100
         self.spellpower = self.gear_set.get_total_spellpower_bonus()
         self.mp5_while_casting = self.gear_set.get_total_mp5_bonus()
@@ -91,12 +126,13 @@ class Character(Race):
 
     def _update_cooldowns(self,verbose=False):
         for spell in self.remaining_cooldowns:
-            if self.remaining_cooldowns[spell] > 0:
+            if self.remaining_cooldowns[spell] > 0.1:
                 if verbose:
                     print("{} on cooldown, {:0.2f} s remaining".format(spell,self.remaining_cooldowns[spell]))
-                self.remaining_cooldowns[spell] = max(0.0,self.remaining_cooldowns[spell] - 0.1)
+                self.remaining_cooldowns[spell] -= 0.1
             else:
                 self.remaining_cooldowns[spell] = 0.0
+                self.on_cooldown[spell] = False
     
     def _update_current_cast(self,verbose=False):
         if self.casting:
@@ -108,18 +144,23 @@ class Character(Race):
                 if verbose:
                     print("{} cast complete!".format(self.current_cast_name))
                 # check for Overload
-                if ("Overload" in self.spec) and (self.current_cast_damage != 0) and (self.current_cast_name in ["Lightning Bolt","Chain Lightning","Lava Burst"]):
-                    if random.rand() < 0.33:
+                if (self.spec.check("Overload")) and (self.current_cast_damage != 0) and (self.current_cast_name in ["Lightning Bolt","Chain Lightning","Lava Burst"]):
+                    if random.random() < 0.33:
                         # add second bolt of 50% damage
                         self.overload_count += 1
                         self.current_cast_damage *= 1.5
-                # record damage and mana
+                # perform cast action
+                # record damage and mana (all spells, can be zero)
                 self.damage_done_this_tick = self.current_cast_damage
                 self.mana_spent_this_tick = self.current_cast_mana_cost
+                # activate buff if any
+                if self.current_cast_name in self.short_buff_active:
+                    self.short_buff_active[self.current_cast_name] = True
+                    self.short_buff_remaining[self.current_cast_name] = self.short_buff_max_duration[self.current_cast_name]
                 # check for new clearcasting
-                if "Elemental Focus" in self.spec and self.current_cast_mana_cost != 0: 
+                if self.spec.check("Elemental Focus") and self.current_cast_mana_cost != 0: 
                     if random.random() < 0.1:
-                        self.clear_cast_active = True
+                        self.short_buff_active["Elemental Focus"] = True
                         self.clear_cast_count += 1
                 # reset cast
                 self.casting = False
@@ -135,6 +176,20 @@ class Character(Race):
                 print("mana gain of {}".format(mana_gain))
             self.mana += mana_gain
     
+    def _update_dots(self,verbose=False):
+        for dot in self.dot_active:
+            self.dot_remaining_duration[dot] -= 0.1
+            if self.dot_active[dot] and self.dot_remaining_duration[dot] < 0.0:
+                # reset
+                self.dot_active[dot] = False
+                self.dot_remaining_duration[dot] = 0.0
+                self.dot_tick_damage[dot] = 0.0
+            elif self.dot_active[dot] and ((self.dot_remaining_duration[dot] % self.dot_tick_frequency[dot]) == 0.0):
+                # tick damage
+                self.damage_done_this_tick += self.dot_tick_damage[dot]
+
+        return
+
     def _record_data(self):
         # scalars
         self.cumulative_damage_done += self.damage_done_this_tick
@@ -148,20 +203,35 @@ class Character(Race):
         self.dps_timeseries.append(dps)
         self.mana_timeseries.append(self.mana)
 
+    def get_dps(self):
+        return(0.0 if self.elapsed_ticks == 0 else self.cumulative_damage_done/(self.elapsed_ticks*0.1))
+    
+    def get_num_spell_casts(self):
+        return(self.spell_cast_count)
+    
+    def get_hit_chance(self):
+        return(0.0 if self.spell_cast_count == 0 else self.spell_hit_count/self.spell_cast_count)
+    
+    def get_crit_chance(self):
+        return(0.0 if self.spell_cast_count == 0 else self.spell_crit_count/self.spell_cast_count)
+    
+    def get_ending_mana(self):
+        return(self.mana_timeseries[len(self.mana_timeseries) - 1])
+    
     def print_perf_stats(self):
         """Prints performance stats for encounter"""
         print("Performance:")
         print("total damage done: {:0.2f}".format(self.cumulative_damage_done))
         print("elapsed time: {:0.2f} s".format(self.elapsed_ticks*0.1))
-        print("dps: {:0.2f}".format(self.cumulative_damage_done/(self.elapsed_ticks*0.1)))
+        print("dps: {:0.2f}".format(self.get_dps()))
         print()
-        print("number of spell casts: {}".format(self.spell_cast_count))
-        print("hit chance: {:0.2f} %".format(self.spell_hit_count/self.spell_cast_count*100.0))
-        print("crit chance: {:0.2f} %".format(self.spell_crit_count/self.spell_cast_count*100.0))
+        print("number of spell casts: {}".format(self.get_num_spell_casts()))
+        print("hit chance: {:0.2f} %".format(self.get_hit_chance()*100))
+        print("crit chance: {:0.2f} %".format(self.get_crit_chance()*100.0))
         print("overload chance: {:0.2f} %".format(self.overload_count/self.spell_cast_count*100.0))
         print("clear cast chance: {:0.2f} %".format(self.clear_cast_count/self.spell_cast_count*100.0))
         print()
-        print("ending mana: {}".format(self.mana))
+        print("ending mana: {}".format(self.get_ending_mana()))
 
     def print_current_state(self):
         """Prints the current character state"""
@@ -212,19 +282,15 @@ class Character(Race):
             4: 20,
         }
 
-        if self.remaining_cooldowns["GCD"] <= 0.0 and not self.casting:
-            mana_cost = MANA_COST_MAP[rank]
-            if self.clear_cast_active:
+        if not self.on_cooldown["GCD"] and not self.casting:
+            mana_cost = MANA_COST_MAP[rank]*(1 - 0.02*self.spec.get_points("Convection"))
+            if self.short_buff_active["Elemental Focus"]:
                 mana_cost = 0
-                self.clear_cast_active = False # turn off clear casting
-            elif "Convection" in self.spec:
-                mana_cost *= (1 - 0.02*self.spec["Convection"])
+                self.short_buff_active["Elemental Focus"] = False # turn off clear casting
 
             if mana_cost <= self.mana:
                 base_cast_time = BASE_CAST_TIME_MAP[rank]
-                cast_time = base_cast_time
-                if "Lightning Mastery" in self.spec:
-                    cast_time -= self.spec["Lightning Mastery"]*0.2
+                cast_time = base_cast_time - self.spec.get_points("Lightning Mastery")*0.2
                 
                 if verbose:
                     print("casting {} (Rank {})!".format(spell_name,rank))
@@ -237,6 +303,7 @@ class Character(Race):
                 self.current_cast_mana_cost = mana_cost
                 # start GCD
                 self.remaining_cooldowns["GCD"] = self.cooldowns_max["GCD"]
+                self.on_cooldown["GCD"] = True
 
                 # compute damage
                 damage = 0.0
@@ -247,26 +314,19 @@ class Character(Race):
                     self.spell_hit_count += 1
                     if verbose:
                         print("HIT!")
-                    base_damage = BASE_DAMAGE_MAP[rank]
-                    if "Concussion" in self.spec:
-                        base_damage *= self.spec["Concussion"]*0.01
+                    base_damage = BASE_DAMAGE_MAP[rank]*(1 + self.spec.get_points("Concussion")*0.01)
                     spc = max(min(base_cast_time,3.5),1.5) / 3.5
                     spc_penalty = 1 - (20 - min(20,LEARNED_LEVEL_MAP[rank]))*0.0375
                     damage = base_damage + (spc * spc_penalty * self.spellpower)
-                    crit_chance = self.spell_crit_chance
-                    if "Call of Thunder" in self.spec:
-                        if self.spec["Call of Thunder"] <= 4:
-                            crit_chance += self.spec["Call of Thunder"]*0.01
-                        else:
-                            crit_chance += 0.06
-                    if "Tidal Mastery" in self.spec:
-                        crit_chance += self.spec["Tiday Mastery"]*0.01
+                    crit_chance = self.spell_crit_chance + self.spec.get_points("Call of Thunder")*0.01 + self.spec.get_points("Tiday Mastery")*0.01
+                    if self.spec.get_points("Call of Thunder") == 5:
+                        crit_chance += 0.01 # additional 1% for 5th talent point...
                     if crit_roll < crit_chance:
                         # crit!
                         self.spell_crit_count += 1
                         if verbose:
                             print("CRIT!")
-                        if "Elemental Fury" in self.spec:
+                        if self.spec.check("Elemental Fury"):
                             damage *= 2.0
                         else:
                             damage *= 1.5
@@ -274,22 +334,108 @@ class Character(Race):
                 self.current_cast_damage = damage
         
         return
+    
+    def ancestral_guidance(self,rank,verbose=False):
+        """https://www.wowhead.com/classic/spell=409337/ancestral-guidance"""
+        # constants (maps from rank to value)
+        spell_name = "Ancestral Guidance"
+        BASE_CAST_TIME_MAP = {
+            1: 0.0,
+        }
+        MANA_COST_MAP = {
+            1: 0,
+        }
 
+        if self.spec.check(spell_name) and not self.on_cooldown["GCD"] and not self.casting and not self.on_cooldown[spell_name]:
+            mana_cost = MANA_COST_MAP[rank]
+
+            if mana_cost <= self.mana:
+                base_cast_time = BASE_CAST_TIME_MAP[rank]
+                cast_time = base_cast_time
+                
+                if verbose:
+                    print("casting {} (Rank {})!".format(spell_name,rank))
+                
+                # begin casting spell
+                self.spell_cast_count += 1
+                self.casting = True
+                self.current_cast_time_remaining = cast_time
+                self.current_cast_name = spell_name
+                self.current_cast_mana_cost = mana_cost
+                # start GCD
+                self.remaining_cooldowns["GCD"] = self.cooldowns_max["GCD"]
+                self.on_cooldown["GCD"] = True
+        
+        return
+    
+    def shamanistic_rage(self,rank,verbose=False):
+        """https://www.wowhead.com/classic/spell=425336/shamanistic-rage"""
+        # constants (maps from rank to value)
+        spell_name = "Shamanistic Rage"
+        BASE_CAST_TIME_MAP = {
+            1: 0.0,
+        }
+        MANA_COST_MAP = {
+            1: 0,
+        }
+
+        if self.spec.check(spell_name) and not self.on_cooldown["GCD"] and not self.casting and not self.on_cooldown[spell_name]:
+            mana_cost = MANA_COST_MAP[rank]
+
+            if mana_cost <= self.mana:
+                base_cast_time = BASE_CAST_TIME_MAP[rank]
+                cast_time = base_cast_time
+                
+                if verbose:
+                    print("casting {} (Rank {})!".format(spell_name,rank))
+                
+                # begin casting spell
+                self.spell_cast_count += 1
+                self.casting = True
+                self.current_cast_time_remaining = cast_time
+                self.current_cast_name = spell_name
+                self.current_cast_mana_cost = mana_cost
+                # start GCD
+                self.remaining_cooldowns["GCD"] = self.cooldowns_max["GCD"]
+                self.on_cooldown["GCD"] = True
+        
+        return
+
+    #TODO:
+    # make spells for healing wave, flame shock, and lava burst
+    # update the primary / secondary stats to consider shamanistic rage
+    # test on single encounter
+    
     # ROTATIONS
+    def kitchen_sink_rotation(self,lightning_bolt_rank,verbose=False):
+        if self.spec.check("Ancestral Guidance") and not self.on_cooldown["Ancestral Guidance"]:
+            self.ancestral_guidance(rank=1,verbose=verbose)
+        elif self.short_buff_active["Ancestral Guidance"]:
+            self.healing_wave(rank=4,verbose=verbose)
+        elif self.spec.check("Shamanistic Rage") and not self.on_cooldown["Shamanistic Rage"]:
+            self.shamanistic_rage(rank=1,verbose=verbose)
+        elif not self.flame_shock_applied and not self.on_cooldown["Flame Shock"]:
+            self.flame_shock(rank=2,verbose=verbose)
+        elif self.spec.check("Lava Burst") and not self.on_cooldown["Lava Burst"]:
+            self.lava_burst(rank=1,verbose=verbose)
+        else:
+            self.lightning_bolt(rank=lightning_bolt_rank,verbose=verbose)
+        return
+
     def rotation_a(self,verbose=False):
         self.lightning_bolt(rank=4,verbose=verbose)
         return
     
     def rotation_b(self,verbose=False):
-        self.lightning_bolt(rank=3,verbose=verbose)
+        self.kitchen_sink_rotation(lightning_bolt_rank=4,verbose=verbose)
         return
     
     def rotation_c(self,verbose=False):
-        self.lightning_bolt(rank=2,verbose=verbose)
+        self.kitchen_sink_rotation(lightning_bolt_rank=3,verbose=verbose)
         return
     
     def rotation_d(self,verbose=False):
-        self.lightning_bolt(rank=1,verbose=verbose)
+        self.kitchen_sink_rotation(lightning_bolt_rank=2,verbose=verbose)
         return
     
     # PRIMARY SIMULATION LOOP
@@ -312,17 +458,21 @@ class Character(Race):
         # update casting
         self._update_current_cast(verbose=False)
 
+        # apply dots
+        self._update_dots(verbose=False)
+
         # update mana regen
         self._update_mana_regen()
         
         # perform rotation
-        if self.rotation == "A":
+        # TODO: "Kitchen Sink Max Rank",
+        if self.rotation == "LB R4":
             self.rotation_a()
-        elif self.rotation == "B":
+        elif self.rotation == "KS LB R4":
             self.rotation_b()
-        elif self.rotation == "C":
+        elif self.rotation == "KS LB R3":
             self.rotation_c()
-        elif self.rotation == "D":
+        elif self.rotation == "KS LB R2":
             self.rotation_d()
 
         # record data

@@ -48,3 +48,14 @@ class MarkOfTheWild(Buff):
             print("Unsupported rank!")
         
         self.max_duration_sec = 30*60
+
+class WaterShield(Buff):
+    def __init__(self,rank):
+        super().__init__()
+
+        if rank == 1:
+            self.pct_max_mana_as_mp5 = 0.01
+        else:
+            print("Unsupported rank!")
+
+        self.max_duration_sec = 10*60

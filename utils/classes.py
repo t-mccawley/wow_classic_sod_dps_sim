@@ -41,19 +41,24 @@ class Buff:
     def __init__(self):
         self.intellect_bonus = 0
         self.spirit_bonus = 0
+        self.pct_max_mana_as_mp5 = 0
         self.max_duration_sec = 0
 
     def get_intellect_bonus(self,time_elapsed_sec):
-        """Returns the intellect bonus"""
         if time_elapsed_sec <= self.max_duration_sec:
             return(self.intellect_bonus)
         else:
             return(0)
         
     def get_spirit_bonus(self,time_elapsed_sec):
-        """Returns the intellect bonus"""
         if time_elapsed_sec <= self.max_duration_sec:
             return(self.spirit_bonus)
+        else:
+            return(0)
+        
+    def get_pct_max_mana_as_mp5(self,time_elapsed_sec):
+        if time_elapsed_sec <= self.max_duration_sec:
+            return(self.pct_max_mana_as_mp5)
         else:
             return(0)
 
@@ -172,3 +177,23 @@ class GearSet:
     def get_gear_set_piece_count(self):
         return(self.gear_set_piece_count)
     
+    def get_gear_set_name(self):
+        return(self.gear_set_name)
+    
+class Spec:
+    def __init__(self,name,spec):
+        # includes both talents and runes
+        self.name = name
+        self.spec = spec # map of talent name to # of points in that talent
+        return
+    
+    def get_name(self):
+        return(self.name)
+    
+    def check(self,talent_name):
+        return(talent_name in self.spec)
+    
+    def get_points(self,talent_name):
+        if talent_name in self.spec:
+            return(self.spec[talent_name])
+        return(0)
