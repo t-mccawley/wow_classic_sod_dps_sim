@@ -119,8 +119,8 @@ class Character(Race):
         """Updates secondary stats"""
         # collect other buffs
         pct_max_mana_as_mp5 = 0.0
-        for buff in self.buffs:
-            pct_max_mana_as_mp5 += buff.get_pct_max_mana_as_mp5(self.elapsed_ticks*0.1)
+        if self.spec.check("Water Shield") and "Water Shield" in self.buffs:
+            pct_max_mana_as_mp5 += self.buffs["Water Shield"].get_pct_max_mana_as_mp5(self.elapsed_ticks*0.1)
 
         self.max_mana = self.base_mana + min(20,self.intellect) + 15*(self.intellect - min(20,self.intellect))
         self.max_mana *= (1 + 0.01*self.spec.get_points("Ancestral Knowledge"))
@@ -237,8 +237,8 @@ class Character(Race):
         self.mana_timeseries.append(self.mana)
 
         if verbose and (self.damage_done_this_tick > 0 or self.mana_spent_this_tick > 0):
-            print("---damage_done_this_tick: {:0.2f}".format(self.damage_done_this_tick))
-            print("---mana_spent_this_tick: {:0.2f}".format(self.mana_spent_this_tick))
+            print("XXXXX damage_done_this_tick: {:0.2f}".format(self.damage_done_this_tick))
+            print("XXXXX mana_spent_this_tick: {:0.2f}".format(self.mana_spent_this_tick))
 
         return
 
@@ -703,12 +703,12 @@ class Character(Race):
     
     # ROTATIONS
     def kitchen_sink_rotation(self,lightning_bolt_rank,verbose=False):
-        # if self.spec.check("Ancestral Guidance") and not self.on_cooldown["Ancestral Guidance"]:
-        #     self.ancestral_guidance(rank=1,verbose=verbose)
-        # elif self.short_buff_active["Ancestral Guidance"]:
-        #     self.healing_wave(rank=5,verbose=verbose)
-        # elif self.spec.check("Shamanistic Rage") and not self.on_cooldown["Shamanistic Rage"]:
-        #     self.shamanistic_rage(rank=1,verbose=verbose)
+        if self.spec.check("Ancestral Guidance") and not self.on_cooldown["Ancestral Guidance"]:
+            self.ancestral_guidance(rank=1,verbose=verbose)
+        elif self.short_buff_active["Ancestral Guidance"]:
+            self.healing_wave(rank=5,verbose=verbose)
+        elif self.spec.check("Shamanistic Rage") and not self.on_cooldown["Shamanistic Rage"]:
+            self.shamanistic_rage(rank=1,verbose=verbose)
         if not self.short_buff_active["Flame Shock"] and not self.on_cooldown["Flame Shock"]:
             self.flame_shock(rank=2,verbose=verbose)
         elif self.spec.check("Lava Burst") and not self.on_cooldown["Lava Burst"]:
