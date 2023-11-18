@@ -21,17 +21,6 @@ class Character(Race):
         self.gear_set = gear_set # list gear
         self.buffs = buffs # list of buffs
         self.rotation = rotation
-        # update primary stats
-        self._update_primary_stats()
-        # update secondary stats
-        self._update_secondary_stats()
-        # character state
-        self.mana = self.max_mana
-        self.casting = False # boolean indicating if actively casting 
-        self.current_cast_time_remaining = 0.0 # number of seconds remaining on cast
-        self.current_cast_spell_name = None # name of current cast
-        self.current_cast_damage = 0.0 # damage that will land with cast completes
-        self.current_cast_mana_cost = 0.0 # mana that will be spent when cast completes
         # cooldowns
         self.on_cooldown = {
             "GCD": False,
@@ -80,15 +69,26 @@ class Character(Race):
         self.dot_tick_damage = {
             "Flame Shock": 0.0,
         }
-        self.dot_tick_frequency = { # seconds between each tick of damage
-            "Flame Shock": 3.0,
+        self.dot_damage_tick_period = { # of ticks between damage
+            "Flame Shock": 30, # 3s
         }
-        self.dot_remaining_duration = {
-            "Flame Shock": 0.0
+        self.dot_remaining_ticks = {
+            "Flame Shock": 0,
         }
-        self.dot_max_duration = {
-            "Flame Shock": 12.0,
+        self.dot_max_ticks = {
+            "Flame Shock": 120, # 12s
         }
+        # update primary stats
+        self._update_primary_stats()
+        # update secondary stats
+        self._update_secondary_stats()
+        # character state
+        self.mana = self.max_mana
+        self.casting = False # boolean indicating if actively casting 
+        self.current_cast_time_remaining = 0.0 # number of seconds remaining on cast
+        self.current_cast_spell_name = None # name of current cast
+        self.current_cast_damage = 0.0 # damage that will land with cast completes
+        self.current_cast_mana_cost = 0.0 # mana that will be spent when cast completes
         # data tracking
         self.damage_done_this_tick = 0.0
         self.mana_spent_this_tick = 0.0
@@ -117,23 +117,42 @@ class Character(Race):
 
     def _update_secondary_stats(self):
         """Updates secondary stats"""
+        # collect other buffs
+        pct_max_mana_as_mp5 = 0.0
+        for buff in self.buffs:
+            pct_max_mana_as_mp5 += buff.get_pct_max_mana_as_mp5(self.elapsed_ticks*0.1)
+
         self.max_mana = self.base_mana + min(20,self.intellect) + 15*(self.intellect - min(20,self.intellect))
         self.max_mana *= (1 + 0.01*self.spec.get_points("Ancestral Knowledge"))
         self.spell_crit_chance = 0.05 + (self.intellect / 59.5) / 100
         self.spellpower = self.gear_set.get_total_spellpower_bonus()
-        self.mp5_while_casting = self.gear_set.get_total_mp5_bonus()
+        self.mp5_while_casting = self.gear_set.get_total_mp5_bonus() + pct_max_mana_as_mp5*self.max_mana
+        if self.short_buff_active["Shamanistic Rage"]:
+            self.mp5_while_casting += 0.1*self.spellpower*5
         self.mp5_while_not_casting = self.mp5_while_casting + (self.spirit/5 + 17)/2*5
-        self.spell_hit_raid_boss = min(0.99, 0.83 + self.gear_set.get_total_spell_hit_bonus())
+        self.spell_hit_raid_boss = min(0.99, 0.83 + self.gear_set.get_total_spell_hit_bonus() + self.spec.get_points("Nature's Guidance")*0.01)
+
+        return
 
     def _update_cooldowns(self,verbose=False):
         for spell in self.remaining_cooldowns:
             if self.remaining_cooldowns[spell] > 0.1:
+                self.remaining_cooldowns[spell] -= 0.1
                 if verbose:
                     print("{} on cooldown, {:0.2f} s remaining".format(spell,self.remaining_cooldowns[spell]))
-                self.remaining_cooldowns[spell] -= 0.1
             else:
                 self.remaining_cooldowns[spell] = 0.0
                 self.on_cooldown[spell] = False
+    
+    def _update_short_buffs(self,verbose=False):
+        for spell in self.short_buff_active:
+            if self.short_buff_remaining[spell] > 0.1:
+                self.short_buff_remaining[spell] -= 0.1
+                if verbose:
+                    print("{} active, {:0.2f} s remaining".format(spell,self.short_buff_remaining[spell]))
+            else:
+                self.short_buff_remaining[spell] = 0.0
+                self.short_buff_active[spell] = False
     
     def _update_current_cast(self,verbose=False):
         if self.casting:
@@ -167,6 +186,11 @@ class Character(Race):
                 if self.current_cast_spell_name in self.on_cooldown:
                     self.remaining_cooldowns[self.current_cast_spell_name] = self.cooldowns_max[self.current_cast_spell_name]
                     self.on_cooldown[self.current_cast_spell_name] = True
+                # start dot if it has one
+                if self.current_cast_spell_name in self.dot_active:
+                    self.dot_active[self.current_cast_spell_name] = True
+                    self.dot_remaining_ticks[self.current_cast_spell_name] = self.dot_max_ticks[self.current_cast_spell_name]
+                    # damage controlled from individual spell and dot manager
                 # reset cast
                 self.casting = False
                 self.current_cast_time = 0.0
@@ -183,14 +207,18 @@ class Character(Race):
     
     def _update_dots(self,verbose=False):
         for dot in self.dot_active:
-            self.dot_remaining_duration[dot] -= 0.1
-            if self.dot_active[dot] and self.dot_remaining_duration[dot] < 0.0:
+            self.dot_remaining_ticks[dot] -= 1
+            if self.dot_active[dot] and self.dot_remaining_ticks[dot] < 0:
+                if verbose:
+                    print("{} dot is complete".format(dot))
                 # reset
                 self.dot_active[dot] = False
-                self.dot_remaining_duration[dot] = 0.0
+                self.dot_remaining_ticks[dot] = 0
                 self.dot_tick_damage[dot] = 0.0
-            elif self.dot_active[dot] and ((self.dot_remaining_duration[dot] % self.dot_tick_frequency[dot]) == 0.0):
+            elif self.dot_active[dot] and ((self.dot_remaining_ticks[dot] % self.dot_damage_tick_period[dot]) == 0.0):
                 # tick damage
+                if verbose:
+                    print("{} dot ticks for {:0.2f}".format(dot,self.dot_tick_damage[dot]))
                 self.damage_done_this_tick += self.dot_tick_damage[dot]
 
         return
@@ -207,6 +235,10 @@ class Character(Race):
             dps = self.cumulative_damage_done/self.elapsed_ticks*0.1
         self.dps_timeseries.append(dps)
         self.mana_timeseries.append(self.mana)
+
+        if verbose and (self.damage_done_this_tick > 0 or self.mana_spent_this_tick > 0):
+            print("---damage_done_this_tick: {:0.2f}".format(self.damage_done_this_tick))
+            print("---mana_spent_this_tick: {:0.2f}".format(self.mana_spent_this_tick))
 
         return
 
@@ -345,6 +377,90 @@ class Character(Race):
         
         return
     
+    def healing_wave(self,rank,verbose=False):
+        """https://www.wowhead.com/classic/spell=331/healing-wave"""
+        # constants (maps from rank to value)
+        spell_name = "Healing Wave"
+        BASE_CAST_TIME_MAP = {
+            1: 1.5,
+            2: 2.0,
+            3: 2.5,
+            4: 3.0,
+            5: 3.0,
+        }
+        MANA_COST_MAP = {
+            1: 25,
+            2: 45,
+            3: 80,
+            4: 155,
+            5: 200,
+        }
+        BASE_DAMAGE_MAP = { # note, actually healing but assumed damage for Ancestral Guidance
+            1: 41.5,
+            2: 76.0,
+            3: 149.5,
+            4: 303.5,
+            5: 421.5,
+        }
+        LEARNED_LEVEL_MAP = {
+            1 : 1,
+            2 : 6,
+            3: 12,
+            4: 18,
+            5: 24,
+        }
+
+        if self.short_buff_active["Ancestral Guidance"] and not self.on_cooldown["GCD"] and not self.casting:
+            mana_cost = MANA_COST_MAP[rank]*(1 - 0.02*self.spec.get_points("Tidal Focus"))
+            if self.short_buff_active["Elemental Focus"]:
+                mana_cost = 0
+                self.short_buff_active["Elemental Focus"] = False # turn off clear casting
+
+            if mana_cost <= self.mana:
+                base_cast_time = BASE_CAST_TIME_MAP[rank]
+                cast_time = base_cast_time - self.spec.get_points("Improved Healing Wave")*0.1
+                
+                if verbose:
+                    print("casting {} (Rank {})!".format(spell_name,rank))
+                
+                # begin casting spell
+                self.spell_cast_count += 1
+                self.casting = True
+                self.current_cast_time_remaining = cast_time
+                self.current_cast_spell_name = spell_name
+                self.current_cast_mana_cost = mana_cost
+                # start GCD
+                self.remaining_cooldowns["GCD"] = self.cooldowns_max["GCD"]
+                self.on_cooldown["GCD"] = True
+
+                # compute damage
+                damage = 0.0
+                hit_roll = random.random()
+                crit_roll = random.random()
+                if hit_roll < self.spell_hit_raid_boss:
+                    # hit!
+                    self.spell_hit_count += 1
+                    if verbose:
+                        print("HIT!")
+                    base_damage = BASE_DAMAGE_MAP[rank]
+                    spc = max(min(base_cast_time,3.5),1.5) / 3.5
+                    spc_penalty = 1 - (20 - min(20,LEARNED_LEVEL_MAP[rank]))*0.0375
+                    damage = base_damage + (spc * spc_penalty * self.spellpower)
+                    crit_chance = self.spell_crit_chance + self.spec.get_points("Tiday Mastery")*0.01
+                    if crit_roll < crit_chance:
+                        # crit!
+                        self.spell_crit_count += 1
+                        if verbose:
+                            print("CRIT!")
+                        damage *= 1.5
+
+                self.current_cast_damage = damage
+
+                if verbose:
+                    print("When {} cast is complete, it will do {:0.2f} damage for {} mana.".format(spell_name,damage,mana_cost))
+        
+        return
+
     def lava_burst(self,rank,verbose=False):
         """https://www.wowhead.com/classic/spell=408491/lava-burst"""
         # constants (maps from rank to value)
@@ -410,6 +526,9 @@ class Character(Race):
                             damage *= 2.0
                         else:
                             damage *= 1.5
+                else:
+                    if verbose:
+                        print("MISS!")
 
                 self.current_cast_damage = damage
 
@@ -477,6 +596,7 @@ class Character(Race):
 
                 # compute damage
                 direct_damage = 0.0
+                dot_damage_per_tick = 0.0
                 hit_roll = random.random()
                 crit_roll = random.random()
                 if hit_roll < self.spell_hit_raid_boss:
@@ -508,7 +628,7 @@ class Character(Race):
                 self.dot_tick_damage[spell_name] = dot_damage_per_tick
 
                 if verbose:
-                    print("When {} cast is complete, it will do {:0.2f} direct damage and {:0.2f} dot damage for {} mana.".format(spell_name,direct_damage,dot_damage_per_tick,mana_cost))
+                    print("When {} cast is complete, it will do {:0.2f} direct damage and {:0.2f} dot damage per tick for {} mana.".format(spell_name,direct_damage,dot_damage_per_tick,mana_cost))
         
         return
     
@@ -579,8 +699,6 @@ class Character(Race):
         return
 
     #TODO:
-    # make spells for healing wave, flame shock
-    # update the primary / secondary stats to consider shamanistic rage
     # test on single encounter
     
     # ROTATIONS
@@ -588,7 +706,7 @@ class Character(Race):
         # if self.spec.check("Ancestral Guidance") and not self.on_cooldown["Ancestral Guidance"]:
         #     self.ancestral_guidance(rank=1,verbose=verbose)
         # elif self.short_buff_active["Ancestral Guidance"]:
-        #     self.healing_wave(rank=4,verbose=verbose)
+        #     self.healing_wave(rank=5,verbose=verbose)
         # elif self.spec.check("Shamanistic Rage") and not self.on_cooldown["Shamanistic Rage"]:
         #     self.shamanistic_rage(rank=1,verbose=verbose)
         if not self.short_buff_active["Flame Shock"] and not self.on_cooldown["Flame Shock"]:
@@ -623,7 +741,7 @@ class Character(Race):
         self.damage_done_this_tick = 0.0
         self.mana_spent_this_tick = 0.0
         if verbose:
-            print("time: {:0.2f} s".format(self.elapsed_ticks*0.1))
+            print("=== time: {:0.2f} s".format(self.elapsed_ticks*0.1))
 
         # update stats
         self._update_primary_stats()
@@ -632,8 +750,8 @@ class Character(Race):
         # update cooldowns
         self._update_cooldowns(verbose=verbose)
 
-        # update casting
-        self._update_current_cast(verbose=verbose)
+        # update short buffs
+        self._update_short_buffs(verbose=verbose)
 
         # apply dots
         self._update_dots(verbose=verbose)
@@ -651,6 +769,9 @@ class Character(Race):
             self.rotation_c(verbose=verbose)
         elif self.rotation == "KS LB R2":
             self.rotation_d(verbose=verbose)
+
+        # update casting
+        self._update_current_cast(verbose=verbose)
 
         # record data
         self._record_data(verbose=verbose)
