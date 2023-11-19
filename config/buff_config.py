@@ -1,8 +1,8 @@
 from db.buffs import ArcaneIntellect, MarkOfTheWild
 
 buffs_1 = [
-    ArcaneIntellect(rank=2),
-    MarkOfTheWild(rank=3),
+    ArcaneIntellect(name="Arcane Intellect",rank=2),
+    MarkOfTheWild(name="Mark of the Wild",rank=3),
 
 ]
 

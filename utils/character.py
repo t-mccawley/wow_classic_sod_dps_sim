@@ -117,21 +117,31 @@ class Character(Race):
 
     def _update_secondary_stats(self):
         """Updates secondary stats"""
-        # collect other buffs
+        # water shield
         pct_max_mana_as_mp5 = 0.0
         if self.spec.check("Water Shield") and "Water Shield" in self.buffs:
             pct_max_mana_as_mp5 += self.buffs["Water Shield"].get_pct_max_mana_as_mp5(self.elapsed_ticks*0.1)
+        # add other buffs
+        spellpower_from_buffs = 0
+        spell_crit_from_buffs = 0.0
+        spell_hit_from_buffs = 0.0
+        mp5_bonus_from_buffs = 0
+        for buff in self.buffs:
+            spellpower_from_buffs += buff.get_spell_power_bonus(self.elapsed_ticks*0.1)
+            spell_crit_from_buffs += buff.get_spell_crit_bonus(self.elapsed_ticks*0.1)
+            spell_hit_from_buffs += buff.get_spell_hit_bonus(self.elapsed_ticks*0.1)
+            mp5_bonus_from_buffs += buff.get_mp5_bonus(self.elapsed_ticks*0.1)
 
         self.max_mana = self.base_mana + min(20,self.intellect) + 15*(self.intellect - min(20,self.intellect))
         self.max_mana *= (1 + 0.01*self.spec.get_points("Ancestral Knowledge"))
-        self.spell_crit_chance = 0.05 + (self.intellect / 59.5) / 100
-        self.spellpower = self.gear_set.get_total_spellpower_bonus()
-        self.mp5_while_casting = self.gear_set.get_total_mp5_bonus() + pct_max_mana_as_mp5*self.max_mana
+        self.spell_crit_chance = min(1.0, 0.05 + (self.intellect / 59.5) / 100 + spell_crit_from_buffs)
+        self.spellpower = self.gear_set.get_total_spellpower_bonus() + spellpower_from_buffs
+        self.mp5_while_casting = self.gear_set.get_total_mp5_bonus() + pct_max_mana_as_mp5*self.max_mana + mp5_bonus_from_buffs
         if self.short_buff_active["Shamanistic Rage"]:
             self.mp5_while_casting += 0.1*self.spellpower*5
         self.mp5_while_not_casting = self.mp5_while_casting + (self.spirit/5 + 17)/2*5
-        self.spell_hit_raid_boss = min(0.99, 0.83 + self.gear_set.get_total_spell_hit_bonus() + self.spec.get_points("Nature's Guidance")*0.01)
-
+        self.spell_hit_raid_boss = min(0.99, 0.83 + self.gear_set.get_total_spell_hit_bonus() + self.spec.get_points("Nature's Guidance")*0.01 + spell_hit_from_buffs)
+    
         return
 
     def _update_cooldowns(self,verbose=False):

@@ -38,11 +38,19 @@ class Race:
         print("base_mana: {}".format(self.base_mana))
 
 class Buff:
-    def __init__(self):
+    def __init__(self,name):
+        self.name = name
         self.intellect_bonus = 0
         self.spirit_bonus = 0
+        self.spell_power_bonus = 0
+        self.spell_hit_bonus = 0
+        self.spell_crit_bonus = 0
+        self.mp5_bonus = 0
         self.pct_max_mana_as_mp5 = 0
         self.max_duration_sec = 0
+    
+    def get_buff_name(self):
+        return(self.name)
 
     def get_intellect_bonus(self,time_elapsed_sec):
         if time_elapsed_sec <= self.max_duration_sec:
@@ -53,6 +61,30 @@ class Buff:
     def get_spirit_bonus(self,time_elapsed_sec):
         if time_elapsed_sec <= self.max_duration_sec:
             return(self.spirit_bonus)
+        else:
+            return(0)
+    
+    def get_spell_power_bonus(self,time_elapsed_sec):
+        if time_elapsed_sec <= self.max_duration_sec:
+            return(self.spell_power_bonus)
+        else:
+            return(0)
+        
+    def get_spell_hit_bonus(self,time_elapsed_sec):
+        if time_elapsed_sec <= self.max_duration_sec:
+            return(self.spell_hit_bonus)
+        else:
+            return(0)
+        
+    def get_spell_crit_bonus(self,time_elapsed_sec):
+        if time_elapsed_sec <= self.max_duration_sec:
+            return(self.spell_crit_bonus)
+        else:
+            return(0)
+        
+    def get_mp5_bonus(self,time_elapsed_sec):
+        if time_elapsed_sec <= self.max_duration_sec:
+            return(self.mp5_bonus)
         else:
             return(0)
         

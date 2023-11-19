@@ -1,8 +1,8 @@
 from utils.classes import Buff
 
 class ArcaneIntellect(Buff):
-    def __init__(self,rank):
-        super().__init__()
+    def __init__(self,name,rank):
+        super().__init__(name)
 
         if rank == 1:
             self.intellect_bonus = 2
@@ -20,8 +20,8 @@ class ArcaneIntellect(Buff):
         self.max_duration_sec = 30*60
     
 class MarkOfTheWild(Buff):
-    def __init__(self,rank):
-        super().__init__()
+    def __init__(self,name,rank):
+        super().__init__(name)
         
         if rank == 1:
             self.intellect_bonus = 0
@@ -50,8 +50,8 @@ class MarkOfTheWild(Buff):
         self.max_duration_sec = 30*60
 
 class WaterShield(Buff):
-    def __init__(self,rank):
-        super().__init__()
+    def __init__(self,name,rank):
+        super().__init__(name)
 
         if rank == 1:
             self.pct_max_mana_as_mp5 = 0.01
@@ -59,3 +59,39 @@ class WaterShield(Buff):
             print("Unsupported rank!")
 
         self.max_duration_sec = 10*60
+
+class PureIntellect(Buff):
+    def __init__(self,name):
+        super().__init__(name)
+        self.intellect_bonus = 1
+        self.max_duration_sec = 30*60
+
+class PureSpirit(Buff):
+    def __init__(self,name):
+        super().__init__(name)
+        self.spirit_bonus = 1
+        self.max_duration_sec = 30*60
+
+class PureSpellPower(Buff):
+    def __init__(self,name):
+        super().__init__(name)
+        self.spell_power_bonus = 1
+        self.max_duration_sec = 30*60
+
+class PureSpellHit(Buff):
+    def __init__(self,name):
+        super().__init__(name)
+        self.spell_hit_bonus = 0.01
+        self.max_duration_sec = 30*60
+
+class PureSpellCrit(Buff):
+    def __init__(self,name):
+        super().__init__(name)
+        self.spell_crit_bonus = 0.01
+        self.max_duration_sec = 30*60
+
+class PureMp5Bonus(Buff):
+    def __init__(self,name):
+        super().__init__(name)
+        self.mp5_bonus = 1
+        self.max_duration_sec = 30*60
