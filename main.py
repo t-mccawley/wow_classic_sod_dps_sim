@@ -31,12 +31,12 @@ results = pd.DataFrame()
 pd.set_option("display.max_columns",None)
 
 id = 0
-N_SIM_ITERATIONS = 1000
+N_SIM_ITERATIONS = 100
 for gear_set in GEAR_SET_LIST:
     for buffs in BUFFS_LIST:
         for spec in SPECS_LIST:
             for rotation in ROTATION_LIST:
-                for encounter_duration in [180.0]:
+                for encounter_duration in [120.0]:
                     dps_sum = 0.0
                     num_spell_casts_sum = 0
                     hit_chance_sum = 0.0
@@ -114,7 +114,6 @@ PURE_STAT_BUFFS = [
 ]
 stat_results = pd.DataFrame()
 id = 0
-N_SIM_ITERATIONS = 1000
 for pure_stat_buff in PURE_STAT_BUFFS:
     buffs = best_buffs + [pure_stat_buff]
     for rotation in ROTATION_LIST: # iterate over rotations to check for possible up-ranking
@@ -168,7 +167,8 @@ stat_results.to_csv("./outputs/stat_sim_output.csv")
 stat_prio = pd.DataFrame()
 for stat in stat_results['buffs'].unique():
     idxs = (stat_results['buffs'] == stat)
-    stat_prio.loc[stat,'dps_increase'] = stat_results.loc[idxs,'dps_avg_change'].max()
+    # divide by 10 to get value for 1 of each stat
+    stat_prio.loc[stat,'weight'] = stat_results.loc[idxs,'dps_avg_change'].max()/10
 
 print(stat_prio)
 

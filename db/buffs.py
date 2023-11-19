@@ -63,35 +63,35 @@ class WaterShield(Buff):
 class PureIntellect(Buff):
     def __init__(self,name):
         super().__init__(name)
-        self.intellect_bonus = 1
+        self.intellect_bonus = 10
         self.max_duration_sec = 30*60
 
 class PureSpirit(Buff):
     def __init__(self,name):
         super().__init__(name)
-        self.spirit_bonus = 1
+        self.spirit_bonus = 10
         self.max_duration_sec = 30*60
 
 class PureSpellPower(Buff):
     def __init__(self,name):
         super().__init__(name)
-        self.spell_power_bonus = 1
+        self.spell_power_bonus = 10
         self.max_duration_sec = 30*60
 
 class PureSpellHit(Buff):
     def __init__(self,name):
         super().__init__(name)
-        self.spell_hit_bonus = 0.01
+        self.spell_hit_bonus = 0.1
         self.max_duration_sec = 30*60
 
 class PureSpellCrit(Buff):
     def __init__(self,name):
         super().__init__(name)
-        self.spell_crit_bonus = 0.01
+        self.spell_crit_bonus = 0.1
         self.max_duration_sec = 30*60
 
 class PureMp5Bonus(Buff):
     def __init__(self,name):
         super().__init__(name)
-        self.mp5_bonus = 1
+        self.mp5_bonus = 10
         self.max_duration_sec = 30*60
